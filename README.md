@@ -72,5 +72,7 @@ Version 0.1
 Thanks to
 -----
 Eben Upton for making RaspberryPi. Without it I will not had need to write this program.
+
 Eric Rose for writting a Blessings module for python. It made making of this program easier.
+
 @starenka for his advices ;)
