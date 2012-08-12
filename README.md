@@ -37,12 +37,12 @@ IF YOU HAVE CONFIG FILE, THE LOGIN INFORMATION ARE UNNECESSARY!
     czget -C
     czget -u url_address -O name
 
-username = Username on czshare.com
-password = Password to your account on czshare.com
-url_address = Address of downloading file
-file_path = File in yours computer with download links. One link per line.
-directory = Directory where you want store downloaded files. (Default directory = your HOME dir)
-name = Different output name
+ - username = Username on czshare.com
+ - password = Password to your account on czshare.com
+ - url_address = Address of downloading file
+ - file_path = File in yours computer with download links. One link per line.
+ - directory = Directory where you want store downloaded files. (Default directory = your HOME dir)
+ - name = Different output name
 
 Issues
 -----
