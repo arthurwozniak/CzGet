@@ -55,7 +55,7 @@ Version 0.3
  - Mechanize was replaced with Requests
  - Simple speed limitter
  - Checking of credit size
- - Password is stored encrypted (Only base64, but its enough for unwanted visitors. If you want to change it in config file, please remove a equals character at the end of the encrypted string.)
+ - Password is stored encrypted (Only base64, but its enough for unwanted visitors.)
  - Downloading file with different name. Does not work with downloading from file list
  - Simple program installer
  - Fixed program crach while file has some special unicode chars
