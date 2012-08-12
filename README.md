@@ -17,7 +17,7 @@ pyquery
 Instalation
 -----
 
-Open terminal, move to folder with extracted files, run ./setup.py and follow the instructions.
+Open terminal, move to folder with extracted files, run __./setup.py__ and follow the instructions.
 After this you have o reload your session or run
 
     source ~/.bashrc
