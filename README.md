@@ -7,10 +7,10 @@ This program allows you to download files from czshare.com using only CLI. Progr
 
 Requires
 -----
-Blessings 1.5 (included)
-python-pip (not included) *
-requests
-pyquery
+ - Blessings 1.5 (included)
+ - python-pip (not included) *
+ - requests
+ - pyquery
 
 * If you will install requests and pyquery yourself, you don't need pip installer.
 
