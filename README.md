@@ -19,6 +19,7 @@ Instalation
 
 Open terminal, move to folder with extracted files, run ./setup.py and follow the instructions.
 After this you have o reload your session or run
+
     source ~/.bashrc
 
 If you want to change password in config file, generate password with this command:
@@ -71,6 +72,6 @@ Version 0.1
 
 Thanks to
 -----
-  Eben Upton for making RaspberryPi. Without it I will not had need to write this program.
-  Eric Rose for writting a Blessings module for python. It made making of this program easier.
-  @starenka for his advices ;)
+ - Eben Upton for making RaspberryPi. Without it I will not had need to write this program.
+ - Eric Rose for writting a Blessings module for python. It made making of this program easier.
+ - @starenka for his advices ;)
