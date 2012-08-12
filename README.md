@@ -58,7 +58,7 @@ Version 0.3
  - Password is stored encrypted (Only base64, but its enough for unwanted visitors.)
  - Downloading file with different name. Does not work with downloading from file list
  - Simple program installer
- - Fixed program crach while file has some special unicode chars
+ - Fixed program crash while file has some special unicode chars
 
 Version 0.2
  - Choosing of own download directory
