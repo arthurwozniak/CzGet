@@ -1,4 +1,4 @@
-CzGET Version 0.3
+CzGET Version 0.4
 =====
 
 About
