@@ -4,6 +4,9 @@ import os, sys
 from shutil import copyfile as copy
 import subprocess
 import base64
+import ConfigParser
+from pwd import getpwnam
+from getpass import getpass
 
 def read_string():
 	return raw_input()
@@ -12,6 +15,8 @@ if "czget.py" not in os.listdir("./"):
 	print "Chyba! Pro instalaci se musíte přepnout do složky obsahující soubory programu"
 	sys.exit(0)
 home_folder = os.getenv("HOME")
+uid = getpwnam(home_folder.split("/")[2])[2]
+gid = getpwnam(home_folder.split("/")[2])[3]
 if os.path.isdir("%s/.czgest" % home_folder):
 	print "Aplikace je již nainstalována. Instalace se ukončí..."
 	sys.exit(0)
@@ -26,29 +31,36 @@ else:
 	# Make a program folder
 	if not os.path.isdir("%s/.czget" % home_folder):
 		os.mkdir(home_folder+"/.czget")
+	# Initialize ConfigParser and make default file structure
+	config = ConfigParser.RawConfigParser()
+	config.add_section("CzGet")
+	config.set("CzGet", "USERNAME", "")
+	config.set("CzGet", "PASSWORD", "")
+	config.set("CzGet", "SPEED_LIMIT", 0)
+	config.set("CzGet", "DOWNDIR", "%s" % home_folder)
 	# Ask sor running a "setup wizard"
 	print """Přejete si spustit průvodce pro vytvoření konfiguračního souboru?
 Bez toho bude nutné upravit %s/.czget/config ručně...""" % home_folder
-	if raw_input("Zadejte A/N [defaultně]: ").lower() == "a":
-		file = open(home_folder+"/.czget/config", 'w')
+	if raw_input("Zadejte A/N [defaultně = N]: ").lower() == "a":
 		username = raw_input("Uživatelské jméno: ")
 		while username == "": username = raw_input("Uživatelské jméno: ")
-		file.write("USERNAME=%s\n" % username)
-		password = raw_input("Heslo: ")
+		config.set("CzGet", "USERNAME", username)
+		password = getpass("Heslo: ")
 		while password == "": password = raw_input("Heslo: ")
-		file.write("PASSWORD="+base64.b64encode(password)+"\n")
+		config.set("CzGet", "PASSWORD", base64.b64encode(password))
 		downdir = raw_input("Složka pro stahování [defaultně '%s/']: " % home_folder)
-		if downdir == "" or not os.path.isdir(downdir):
-			downdir = home_folder
-		file.write("DOWNDIR=%s\n" % downdir)
+		if downdir != "" or os.path.isdir(downdir):
+			config.set("CzGet", "DOWNDIR", downdir)
 		speedlimit=raw_input("Limit stahování v B/s [0 = neomezeně]: ")
-		if type(speedlimit) != type(0):
-			speedlimit = 0
-		file.write("SPEED_LIMIT=%d\n" % speedlimit)
-		file.close()
+		if type(speedlimit) == int:
+			config.set("CzGet", "SPEED_LIMIT", speedlimit)
+		with open(home_folder+"/.czget/config", 'wb') as configfile:
+			config.write(configfile)	
 	else:
-		# Copy empty config file into program directory
-		copy("./config", home_folder+"/.czget/config")
+	# Create empty config file
+		with open(home_folder+"/.czget/config", 'wb') as configfile:
+			config.write(configfile)
+			
 	# Copy script file into a created directory
 	copy("./czget.py", home_folder+"/.czget/czget.py")
 	# Make ~/.czget/czget.py executable
@@ -57,4 +69,11 @@ Bez toho bude nutné upravit %s/.czget/config ručně...""" % home_folder
 	copy("./blessings.py", home_folder+"/.czget/blessings.py")
 	# Create ~/.bashrc alias
 	open(home_folder+"/.bashrc", 'a').write("\nalias czget='~/.czget/czget.py'")
+	# Change permissions to whole folder
+	for dir, subdirs, files in os.walk("%s/.czget" % home_folder):
+		os.chown(dir, uid, gid)
+		for item in subdirs:
+			os.chown(os.path.join(dir, item), uid, gid)
+		for item in files:
+			os.chown(os.path.join(dir, item), uid, gid)
 	print "Instalace dokončena"

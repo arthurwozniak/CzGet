@@ -43,6 +43,9 @@ IF YOU HAVE CONFIG FILE, THE LOGIN INFORMATION ARE UNNECESSARY!
  - file_path = File in yours computer with download links. One link per line.
  - directory = Directory where you want store downloaded files. (Default directory = your HOME dir)
  - name = Different output name
+ 
+ and much more... For more info, please run
+	czget --help
 
 Issues
 -----
@@ -51,11 +54,16 @@ If your download speed does not match your 'real' download capacity, try to incr
 Changelog
 -----
 
+Version 0.4
+ - Improved setup file
+ - Added function for resume download
+ - Added function for post-installation user information change
+
 Version 0.3
  - Mechanize was replaced with Requests
  - Simple speed limitter
  - Checking of credit size
- - Password is stored encrypted (Only base64, but its enough for unwanted visitors.)
+ - Password is stored encoded (Only base64, but its enough for unwanted visitors.)
  - Downloading file with different name. Does not work with downloading from file list
  - Simple program installer
  - Fixed program crash while file has some special unicode chars

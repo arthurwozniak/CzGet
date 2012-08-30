@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # CzGet - downloading from czshare.com using CLI
-# version 0.3
+# version 0.4
 # Created by Kamil Hanus (ja [ at ] kamilhanus [ dot ] cz)
 # Published under CC BY-NC-SA 3.0 http://creativecommons.org/licenses/by-nc-sa/3.0/
 
@@ -13,7 +13,8 @@ import time
 import optparse
 import requests
 from pyquery import PyQuery as pq
-from base64 import b64decode
+from base64 import b64decode, b64encode
+import ConfigParser
 
 def get_time():
 	 return time.strftime("%Y-%m-%d %H:%M:%S")
@@ -62,30 +63,42 @@ class status_bar_updater:
 		unit, current_speed=recalculate_size(current_speed)
 		speed="%d%s/s" % (int(current_speed),unit)
 		return returned_value, speed
-	def update_progress(self, percentage):
+	def update_percentage(self, current_size, total_size):
+		if total_size != 0: percentage=int((current_size/(total_size*1.0))*100)
+		else: percentage=0
+		if percentage > 100: percentage = 100 # :o)
+		return percentage
+		
+	def update_progress(self, percentage, finished_size, total_size):
 		space=self.term.width-41
-		rows=int(round(percentage*(space/100.0),0))
-		return "[%s%s%s]" % (rows*"=", ">", (space-rows)*" ")
+		plus = int(round(self.update_percentage(finished_size, total_size)*(space/100.0),0))
+		rows=int(round(percentage*(space/100.0),0))		
+		if rows < 0: rows = 0
+		if rows == 0: rows = plus
+		return "[%s%s%s%s]" % (plus*"+", (rows-plus)*"=", ">", (space-rows)*" ")
+		
 	def update_current_size(self, size):# mezi kazde tri cislice prida mezeru
 		size = str(size)
-		divide_by=len(size)/3
-		new_size=""
-		if divide_by==0: new_size=size
+		divide_by = len(size)/3
+		new_size = ""
+		if not divide_by: new_size=size
 		else:
-			while divide_by > 0:
+			while divide_by:
 				new_size="%s %s" % (size[-3:],new_size)
 				size=size[:-3]
 				divide_by-=1
 				if len(size)<3:
 					new_size="%s %s" % (size,new_size)
 		return " %s%s " % (new_size, (13-len(new_size))*" ")		
-	def update_percentage(self, current_size, total_size):
-		if total_size != 0: percentage=int((current_size/(int(total_size)*1.0))*100)
-		else: percentage=0
-		if percentage > 100: percentage = 100 # :o)
-		return percentage
 		
-	def __init__(self, size, current_size, temporary_size, time1, time2, status, term, filename):
+	def __init__(self, total_size, finished_size, currently_downloaded, temporary_size, time1, time2, status, term, filename):
+		""" tota_size = full size
+			finished size = size of file before dofnloading ( only if continue option is true
+			currently_donloaded = size of download since program start
+			temporary_size = size of downloaded before statusbar refresh
+			time1 = time of last refresh of statusbar if status != finished, else it is time whed downloading started
+			time2 = time just before refresh of statusbar if status != finished, else it is time whed downloading finished
+			term = self.term of CzShare class, otherwise statusbar resresh will not work """
 		self.term = term
 		if status == "init":
 			self.speed_list=[1,1,1,1,1]
@@ -94,24 +107,39 @@ class status_bar_updater:
 			current_speed_str="0B/s"
 			remaining_time = " zbyva NaN"
 		else:
-			current_percentage = self.update_percentage(current_size, size)
+			current_percentage = self.update_percentage(currently_downloaded + finished_size, total_size) 	 	
 			current_speed = self.update_speed(time1,time2,temporary_size)
 			current_speed_str = current_speed[1]
 			current_speed = current_speed[0]
 			if status == "finished":
-				remaining_time = self.update_remaining_time(size, current_speed, current_size, True, (time2-time1))
+				remaining_time = self.update_remaining_time(total_size, current_speed, currently_downloaded, True, (time2-time1))
 			else:
-				remaining_time = self.update_remaining_time(size, current_speed, current_size, False, 0)
+				remaining_time = self.update_remaining_time(total_size-finished_size, current_speed, currently_downloaded, False, 0)
 			
-		updated_current_size = self.update_current_size(current_size)
-		progress_bar = self.update_progress(current_percentage)
+		updated_current_size = self.update_current_size(currently_downloaded + finished_size)
+		progress_bar = self.update_progress(current_percentage, finished_size, total_size)
 		current_percentage_string = "%s%d%s" % ((3-len(str(current_percentage)))*" ",current_percentage,"%")
 		current_speed_str = "%s%s" % ((6-len(current_speed_str))*" ", current_speed_str)
 		remaining_time_str = "%s%s" % ((13-len(remaining_time))*" ", remaining_time)
 		print self.term.move_up + (current_percentage_string + progress_bar + updated_current_size + current_speed_str + remaining_time_str)
 		if status == "finished":
-			print "%s (%s) - „%s“ uložen [%s]" % (get_time(), self.update_speed(time1, time2, int(size))[1], filename, size)
+			print "%s (%s) - „%s“ uložen [%s]" % (get_time(), self.update_speed(time1, time2, total_size)[1], filename, total_size)
 class CZshare():
+	
+	def changeConfig(self, config_path, new_name, new_pass, new_dir, new_limit):
+		newConfig = ConfigParser.RawConfigParser()
+		newConfig.read(config_path)
+		if new_pass:new_pass=b64encode(new_pass)
+		valueList = {"username":new_name, "password":new_pass, "downdir": new_dir, "speed_limit":new_limit}
+		for item in valueList:
+			if valueList[item] or valueList[item] == 0:
+				newConfig.set("CzGet", "%s" % item, "%s" % valueList[item])
+		with open(config_path, 'wb') as configfile:
+			newConfig.write(configfile)
+
+	def showCredit(self, credit):
+		print "Zbývající kredit: %.1lf GB" % (credit/(10.0**9))
+		
 	def delete_file_from_queue(self, code):
 		data={"sm_[]":code, "smazat_profi":"Smazat"} # makes data dict including code enabling file delete
 		response = requests.post("https://czshare.com/index.php", data=data, cookies=self.cookies) # sends request for file delete
@@ -162,11 +190,23 @@ class CZshare():
 		self.parser.add_option("-c", "--config_file", dest="config", default=HOME+"/.czget/config",
 						  type="string", help="Cesta ke konfiguracnimu souboru")
 		self.parser.add_option("-C", "--credit", dest="credit", default=None,
-						  action="store_true", help="Cesta ke konfiguracnimu souboru")
+						  action="store_true", help="Zobrazit zbyvajici kredit")
 		self.parser.add_option("-s", "--speed-limit", dest="speed_limit", default=None,
 						  type="int", help="Omezi rychlost stahovani na danou hodnotu. Neomezene = 0")
+		self.parser.add_option("-D", "--disable-speed-limit", dest="speed_limit_disable", default=False,
+						  action="store_true", help="Zakaze omezeni rychlosti")
 		self.parser.add_option("-O", "--output-file", dest="output_file", default=None,
 						  type="string", help="Nazev vystupniho souboru. Nelze pouzit pri stahovani ze souboru.")
+		self.parser.add_option("--change-username", dest="new_username", default=None,
+						  type="string", help="Nove uzivatelske jmeno.")
+		self.parser.add_option("--change-password", dest="new_password", default=None,
+						  type="string", help="Nove heslo.")
+		self.parser.add_option("--change-directory", dest="new_directory", default=None,
+						  type="string", help="Nova slozka pro ukladani.")
+		self.parser.add_option("--change-limit", dest="new_limit", default=None,
+						  type="int", help="Nova hodnota omezeni rychlosti.")
+		self.parser.add_option("--continue", dest="resume_download", default=False,
+						  action="store_true", help="Pokracovat ve stahovani pozastavenych souboru.")
 		(self.options, self.args) = self.parser.parse_args()
 	def parse_urls(self):
 		if self.filename:
@@ -206,58 +246,79 @@ class CZshare():
 			nazev=file_page_content("div#parameters")("a")[0].text # Gets file name from <a> in div with id #parameters
 			file_code=file_page_content.find("input")[3].value
 			file_id=file_page_content.find("input")[2].value
+			
 			file_content=requests.post("https://czshare.com/profi_down.php", data={"id":file_id, "code":file_code}, cookies = self.cookies, prefetch=False)
+			finished_size = 0
+			currently_downloaded = 0
+			total_size = int(file_content.headers["content-length"])
 			if "error.php" in file_content.url:
 				print "Soubor není momentálně dostupný. Zkuste to později."
 			else:
-				file_delete_code=file_content.url.split("&")[1][4:]
-				size=file_content.headers["content-length"]
-				speedShort=recalculate_size(int(size))
-				print "Délka: %s (%d%s) [%s]" % (size, int(speedShort[1]), speedShort[0], file_content.headers["content-type"])
-				if size > self.credit:
+				if self.resume_download and os.path.isfile("%s/%s" % (self.directory, nazev)):
+					self.delete_file_from_queue(file_content.url.split("&")[1][4:])
+					finished_size = os.path.getsize("%s/%s" % (self.directory, nazev))
+					if total_size > finished_size:
+						file_content=requests.post("https://czshare.com/profi_down.php", data={"id":file_id, "code":file_code}, cookies = self.cookies,
+						prefetch=False, headers = {"Range" : "bytes=%d-%s" % (finished_size, str(total_size)) })
+				else: self.resume_download = False
+				# Delete file from queue
+				if self.delete_file_from_queue(file_content.url.split("&")[1][4:]):
+					print "Soubor byl smazán z fronty.\n"
+				else: print "Soubor nelze odstranit z fronty.\n"
+				download_size=int(file_content.headers["content-length"])
+				speedShort=recalculate_size(total_size)
+				if self.resume_download:
+					# calculate full size
+					speedShort1=recalculate_size(download_size)
+					print "Délka: %d (%s%s), %s (%s%s) zbývá [%s]" % (total_size, speedShort[1], speedShort[0], download_size, speedShort1[1], speedShort1[0], file_content.headers["content-type"])
+				else:	
+					print "Délka: %d (%d%s) [%s]" % (total_size, int(speedShort[1]), speedShort[0], file_content.headers["content-type"])
+				if download_size <= self.credit:
 					if self.url_address and self.output_file_name:
 						nazev = self.output_file_name
 					nazev = nazev.encode("utf-8")
-					soubor=open("%s/%s" % (self.directory, nazev), 'wb')
+					open_method = 'wb'
+					if self.resume_download: open_method = 'ab'
+					file=open("%s/%s" % (self.directory, nazev), open_method)
 					print "Ukládám do: „%s/%s“\n\n" % (self.directory,nazev)
-					current_size=0
 					temporary_size=0
-					status_bar_updater(size,current_size, temporary_size, 0, 0, "init", self.term, None)
+					# Workaround for modified files which size si bigger than size of file on server.
+					if download_size < 0: download_size = total_size
+					status_bar_updater(total_size, finished_size, currently_downloaded, temporary_size, 0, 0, "init", self.term, None)
 					start_of_downloading=round(time.time(),3)
 					start_time=round(time.time(),3)
-					end_time=0
-					temporary_size=0
-					self.speed_list=[0,0,0,0,0]
-					read_bytes=20
-					if self.speed_limit_enable:
-						if read_bytes > self.speed_limit: read_bytes = self.speed_limit
-						limit_start_time=round(time.time(),3)
-						limit_size=0
-					tmp = file_content.raw.read(read_bytes)
-					while (tmp):
-						soubor.write(tmp)
-						soubor.flush()
-						current_size+=len(tmp)
-						temporary_size+=len(tmp)
-						current_time=round(time.time(),3)
-						if((current_time-start_time)>0.2):
-							status_bar_updater(size,current_size, temporary_size, start_time, current_time, 0, self.term, None)
-							temporary_size=0
-							start_time=round(time.time(),3)
+					if finished_size < total_size:
+						end_time=0
+						temporary_size=0
+						self.speed_list=[0,0,0,0,0]
+						read_bytes=20
 						if self.speed_limit_enable:
-							limit_size +=len(tmp)
-							limit_stop_time = time.time()
-							if limit_size >=self.speed_limit and (limit_stop_time-limit_start_time)<1.0:
-								time.sleep(1-(limit_stop_time - limit_start_time))
-								limit_size = 0
-								limit_start_time=time.time()
-						tmp = file_content.raw.read(read_bytes)# RasPi was limited by this value to down speed 10K/s when reading 8B, so there is a hypotetic ratio 1200
+							if read_bytes > self.speed_limit: read_bytes = self.speed_limit
+							limit_start_time=round(time.time(),3)
+							limit_size=0
+						tmp = file_content.raw.read(read_bytes)
+						while (tmp):
+							file.write(tmp)
+							file.flush()
+							currently_downloaded+=len(tmp)
+							temporary_size+=len(tmp)
+							current_time=round(time.time(),3)
+							if((current_time-start_time)>0.2):
+								status_bar_updater(total_size, finished_size, currently_downloaded, temporary_size, start_time, current_time, 0, self.term, None)
+								temporary_size=0
+								start_time=round(time.time(),3)
+							if self.speed_limit_enable:
+								limit_size +=len(tmp)
+								limit_stop_time = time.time()
+								if limit_size >=self.speed_limit and (limit_stop_time-limit_start_time)<1.0:
+									time.sleep(1-(limit_stop_time - limit_start_time))
+									limit_size = 0
+									limit_start_time=time.time()
+							tmp = file_content.raw.read(read_bytes)# RasPi was limited by this value to down speed 10K/s when reading 8B, so there is a hypotetic ratio 1200
+					
 					end_of_downloading=round(time.time(),3)
-					soubor.close()
-					status_bar_updater(size,current_size, temporary_size, start_of_downloading, end_of_downloading, "finished", self.term, nazev)
-					if self.delete_file_from_queue(file_delete_code):
-						print "Soubor byl smazán z fronty.\n"
-					else: print "Soubor nelze odstranit z fronty.\n"
+					file.close()
+					status_bar_updater(total_size, finished_size, currently_downloaded, temporary_size, start_of_downloading, end_of_downloading, "finished", self.term, nazev)
 				else:
 					print "--%s-- CHYBA : Nemáte dostatečný kredit\n" % get_time()
 		else: print "--%s-- CHYBA 404: Not found\n" % get_time()
@@ -266,49 +327,55 @@ class CZshare():
 		self.term = Terminal()
 		self.check_terminal_size()
 		self.init_parser(self.home)
+		# Change config file if needed
+		self.changeConfig(self.options.config, self.options.new_username, self.options.new_password,
+							self.options.new_directory, self.options.new_limit)
 		self.filename=self.options.file_path
 		self.url_address=self.options.url_address
 		self.speed_limit=self.options.speed_limit
 		self.output_file_name = self.options.output_file
-		showCredit = self.options.credit
 		if self.filename and self.url_address:
 			self.parser.error("Nelze zaroven zvolit url adresu a vstupni soubor")
-		self.config=self.options.config
-		config_content={}
-		for x in open(self.config, 'r'):
-			if x[0:1]!="#":
-				# Maybe is better way how to fetch password if there is more equals chars in the line
-				if x[:8] == "PASSWORD":
-					config_content["PASSWORD"] = x[9:]
-				else:
-					config_content[x.split("=")[0]]=x[len(x.split("=")[0])+1:-1]
-		self.username=config_content["USERNAME"]
+		# Set path to config file [ /home/username/.czget/config setted defaultly]
+		if os.path.isfile(self.options.config):
+			self.config = self.options.config
+		else:
+			self.config = "%s/.czget/config" % self.home
+		# Initialize ConfigParser
+		config = ConfigParser.RawConfigParser()
+		# Open config file
+		config.read(self.config)
+		# Get login values from config file
+		self.username = config.get("CzGet", "username")
+		self.password = b64decode(config.get("CzGet", "password"))
 		if self.options.user_name:
 			self.username = self.options.user_name
-		self.password=b64decode(config_content["PASSWORD"])
 		if self.options.password:
 			self.password = self.options.password
-		self.speed_limit_enable = False
-		if self.speed_limit == None and config_content["SPEED_LIMIT"]:
-			self.speed_limit = config_content["SPEED_LIMIT"]
-		if type(self.speed_limit) != type(0):
-			self.speed_limit = 0
-		if self.speed_limit > 0:
-			self.speed_limit_enable = True
+		self.speed_limit_enable = type(self.speed_limit) == int
+		if not self.options.speed_limit_disable and not self.speed_limit:
+			if self.speed_limit == None and config.get("CzGet", "speed_limit"):
+				self.speed_limit = config.get("CzGet", "speed_limit")
+			if type(self.speed_limit) != int:
+				self.speed_limit = 0
+			if self.speed_limit > 0:
+				self.speed_limit_enable = True
+		self.resume_download = self.options.resume_download
 		if self.options.directory and os.path.isdir(self.options.directory):
 			self.directory = self.options.directory
-			if self.directory[-1:]=="/": self.HOME=self.directory[:-1]
+			if self.directory[-1:] == "/":
+				self.home=self.directory[:-1]
 		else:
-			if os.path.isdir(config_content["DOWNDIR"]): self.directory = config_content["DOWNDIR"]
+			if os.path.isdir(config.get("CzGet", "downdir")):
+				self.directory = config.get("CzGet", "downdir")
 			else: self.directory=self.home
 		self.parse_urls()
 		print "CzGet, stahovani z czshare.com pomoci CLI"
 		self.test_login()
-		if showCredit:
-			print "Zbývající kredit: %.1lf GB" % (self.credit/(10.0**9))
-		if self.filename==None and self.url_address == None:
+		if self.options.credit:
+			self.showCredit(self.credit)
+		if not self.filename and not self.url_address:
 			sys.exit(0)
-		dl_content=[]
 		for i in self.content:
 			self.download_file(i)
 
