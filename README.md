@@ -41,6 +41,7 @@ IF YOU HAVE CONFIG FILE, THE LOGIN INFORMATION ARE UNNECESSARY!
  - name = Different output name
  
  and much more... For more info, please run
+
      czget --help
 
 Issues
