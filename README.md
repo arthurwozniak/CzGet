@@ -22,10 +22,6 @@ After this you have o reload your session or run
 
     source ~/.bashrc
 
-If you want to change password in config file, generate password with this command:
-
-    echo -n "password" | base64
-
 Usage
 -----
 
